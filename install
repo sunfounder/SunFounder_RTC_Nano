@@ -1,0 +1,137 @@
+#!/bin/bash
+
+if [ "$(whoami)" != "root" ] ; then
+    echo -e "You must run this script as root."
+    end
+fi
+
+
+###################################
+# define function
+###################################
+function if_continue(){
+    while :; do
+        echo  -e "(yes/no) \c"
+        read input_item
+        if [ $input_item = "yes" ]; then
+            break
+        elif [ $input_item = "no" ]; then
+            return 0
+        else
+            echo -e "Input error, please try again."
+        fi
+    done
+    return 1 
+}
+
+function end(){
+    print_result
+    echo -e "Exiting..."
+    exit
+}
+
+is_i2c=false
+is_rtc=false
+is_w1=false
+
+function print_result(){
+    echo -e "Installation result:"
+    echo -e "i2c Enable    \c"
+    if [ is_i2c ]; then
+        echo -e "Success"
+    else
+        echo -e "Failed"
+    fi
+    echo -e "rtc,pcf8563  \c"
+    if [ is_rtc ]; then
+        echo -e "Success"
+    else
+        echo -e "Failed"
+    fi
+    echo -e "w1-bus  \c"
+    if [ is_w1 ]; then
+        echo -e "Success"
+    else
+        echo -e "Failed"
+    fi
+    echo -e "\n"
+}
+
+###################################
+# modify /boot/config.txt
+# Enable I2C1 #
+# dtoverlay: i2c-rtc, w1-gpio #
+###################################
+# Add lines to /boot/config.txt
+# pick up all uncomment configrations
+egrep -v "^#|^$" /boot/config.txt > config.txt.temp
+# while items in uncomment configrations, don't do again
+# i2c
+if grep -q 'dtparam=i2c_arm=on' config.txt.temp; then
+    echo -e '    Seem i2c_arm parameter already set, skip this step \n'
+else
+    echo -e '    dtparam=i2c_arm=on \n' >> /boot/config.txt
+fi
+is_i2c=true
+
+# rtc
+if grep -q 'dtoverlay=i2c-rtc,pcf8563' config.txt.temp; then
+    echo -e '    Seem rtc,pcf8563 parameter already set, skip this step \n'
+else
+    echo -e '    dtoverlay=i2c-rtc,pcf8563 \n' >> /boot/config.txt
+fi
+
+#Disable the "fake hwclock" which interferes with the 'real' hwclock
+sudo apt-get -y remove fake-hwclock
+sudo update-rc.d -f fake-hwclock remove
+if grep -q 'sudo hwclock -s' /etc/rc.local; then
+    echo -e '    rc.local already set, skip this step'
+else
+    sudo sed -i '$i sudo hwclock -s' /etc/rc.local
+fi
+
+is_rtc=true
+
+# w1-bus
+if grep -q 'dtoverlay=w1-gpio' config.txt.temp; then
+    echo -e '    Seem w1-gpio parameter already set, skip this step \n'
+else
+    echo -e '    dtoverlay=w1-gpio \n' >> /boot/config.txt
+fi
+is_w1=true
+rm config.txt.temp
+echo -e "complete\n"
+
+print_result
+
+
+# set time
+# Sync time from Pi to RTC
+echo -e "You want sync time from Pi to RTC? If not, you can set time by yourself"
+if_continue
+if [ $? = 1 ]; then
+    echo -e "Sync time complete\n"
+    sudo hwclock -w
+else
+    echo -e "set date: (yyyy/mm/dd)"
+    read input_item
+    sudo hwclock --set --date=$input_item
+    echo -e "set time: (hh:mm:ss)"
+    read input_item
+    sudo hwclock --set --date=$input_item
+fi
+
+sudo mkdir /var/opt/rtc-nano/
+sudo python setup.py install
+
+echo -e "The stuff you have change may need reboot to take effect."
+echo -e "Do you want to reboot immediately? \c"
+if_continue
+if [ $? = 1 ]; then
+    echo -e "Rebooting..."
+    sudo reboot
+else
+    echo -e "Exiting..."
+    exit
+fi
+

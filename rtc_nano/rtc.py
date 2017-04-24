@@ -1,18 +1,21 @@
-import commands, time
+import subprocess, time
 from basic import _Basic_class
+import os
 
-class RTC(_Basic_class)
+class RTC(_Basic_class):
     monthname = {'01':'Jan', '02':'Feb', '03':'Mar', '04':'Apr', '05':'May', '06':'Jun',
                  '07':'Jul', '08':'Aug', '09':'Sep', '10':'Oct', '11':'Nov', '12':'Dec'}
     monthfullname = {'01':'January', '02':'February', '03':'March', '04':'April', '05':'May', '06':'June',
                      '07':'July', '08':'August', '09':'September', '10':'October', '11':'November', '12':'December'}
 
-    def __init__(self):
-        pass
+    _class_name = 'RTC'
+    def __init__(self, log='debug'):
+        self.logger_setup()
+        self.DEBUG = log
 
     def confirm_loop(self, word):
         while True:
-            check = raw_input('%s (y/n)'%word)
+            check = raw_input('%s (y/n) '%word)
             if check == 'n' or check == 'N':
                 return False
             elif check == 'y' or check == 'Y':
@@ -21,14 +24,24 @@ class RTC(_Basic_class)
                 print("\nSorry, I don't understand. I'm expecting a \"y\" or an \"n\" here. So try again. ")
 
     def setup(self):
-        print('\nNow the RTC is:')
-        time.sleep(0.5)
-        print(commands.getoutput('hwclock -r'))
-        result = confirm_loop('Is it right? Do you need to set the clock?')
-        if result:
-            print('OK, we are done here. Installation finished.')
-        else check == 'y' or check == 'Y':
-            set_datetime()
+        if self.is_rtc_avaible:
+            print('\nNow the RTC is:')
+            print(subprocess.check_output('sudo hwclock -r',shell=True))
+            result = self.confirm_loop('Is it right? Do you need to set the clock?')
+            if result:
+                self.set_datetime()
+            else:
+                print('OK, we are done here. Installation finished.')
+
+    @property
+    def is_rtc_avaible(self):
+        status = subprocess.call('sudo hwclock -r > /tmp/1',shell=True)
+        if status == 1:
+            self._error('RTC is not availble, please the connection')
+            return False
+        else:
+            self._debug('RTC status: OK, raw value: %s'%status)
+            return True
 
     def set_datetime(self):
         print("\nLet's set the date!")
@@ -76,15 +89,15 @@ class RTC(_Basic_class)
                 count_d += 1
 
             if count_d <= 1:
-                print('\nGreat! Pretty easy huh?',)
+                print('\nGreat! Pretty easy huh?')
 
             elif count_d <= 2:
-                print('Well, we did it. ',)
+                print('Well, we did it. ')
                 
             elif count_d > 2:
                 print('Finally, we set the date. It took forever. But anyway.', )
                 
-            confirm = confirm_loop('\nYou set the date to: %s. %s, %s\nAre you sure about that?' % (self.monthname[month], dateofmonth, year))
+            confirm = self.confirm_loop('\nYou set the date to: %s.%s, %s\nAre you sure about that?' % (self.monthname[month], dateofmonth, year))
 
         print("\nNow! Let's set the time!")
         confirm = None
@@ -122,34 +135,36 @@ class RTC(_Basic_class)
                 count_t += 1
 
             if count_t <= 1 and count_d <= 1:
-                print('\nBrilliant! Pretty easy huh?',)
+                print('\nBrilliant! Pretty easy huh?')
 
-            if count_t <= 2:
-                print('Well, we did it. ',)
+            elif count_t <= 2:
+                print('\nWell, we did it. ')
                 
-            if count_t > 2:
-                print('Finally, we set the date. It took forever. But anyway.',)
+            elif count_t > 2:
+                print('\nFinally, we set the date. It took forever. But anyway.',)
 
-            confirm = confirm_loop('\nYou\'ve just set the corrent time to: %s:%s:%s\nAre you sure about that?' % (hour, minute, second))
+            confirm = self.confirm_loop('\nYou\'ve just set the corrent time to: %s:%s:%s\nAre you sure about that?' % (hour, minute, second))
                     
         print("Great! Now I will correct the time for you.")
         
         print('Setting Linux time...')
         datetimesetting = month+dateofmonth+hour+minute+year+'.'+second
-        print(commands.getoutput("date %s" % datetimesetting))
+        datetimesetting = "sudo date %s"%datetimesetting
+        print(subprocess.check_output(datetimesetting,shell=True))
         print('Done! Set Linux time to')
-        print(commands.getoutput('date'))
+        print(subprocess.check_output('sudo date',shell=True))
         
         print('\nSetting RTC from Linux time...')
-        print(commands.getoutput('sudo hwclock -w'))
+        print(subprocess.check_output('sudo sudo hwclock -w',shell=True))
         print('Done! Set clock on RTC to:')
-        print(commands.getoutput('sudo hwclock -r'))
+        print(subprocess.check_output('sudo sudo hwclock -r',shell=True))
 
-        print('\n\nOK, we are done here. Installation finished. Thank you for your support. \nIf anything goes wrong, copy or PrintScreen this log and send it to support@sunfounder.com')
+        print('\n\nOK, we are done here. Thank you for your support.')
 
     def get_datetime(self):
-        status, _datetime = commands.getstatusoutput('hwclock -r')
-        return _datetime
+        if self.is_rtc_avaible:
+            _datetime = subprocess.check_output('sudo hwclock -r',shell=True)
+            return _datetime.strip()
         
     def get_date(self):
         _datetime = self.get_datetime()
@@ -197,10 +212,3 @@ class RTC(_Basic_class)
         _blank = ' '
         _date = _blank.join(_date)
         return _date, _time
-
-if __name__ == "__main__":
-    try:
-        PCF8563.setup()
-    except KeyboardInterrupt:
-        pass
-        

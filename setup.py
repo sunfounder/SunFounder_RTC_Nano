@@ -32,6 +32,9 @@ setup(
     keywords='rtc sunfounder raspberry pi ds18b20 temperature sensor',
 
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
+    package_data={
+        'config': ['config.dat'],
+    },
     entry_points={
         'console_scripts': [
             'rtc-nano=rtc_nano:main',
